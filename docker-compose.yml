@@ -1,0 +1,240 @@
+
+version: '2.2'
+
+volumes:
+  languages:
+    external:
+      name: ${CYBER_DOJO_START_POINT_LANGUAGES}
+  exercises:
+    external:
+      name: ${CYBER_DOJO_START_POINT_EXERCISES}
+  custom:
+    external:
+      name: ${CYBER_DOJO_START_POINT_CUSTOM}
+  # monitoring
+  grafana_data: {}
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+services:
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # multi-threaded front-end with http caching
+
+  nginx:
+    user: root
+    image: cyberdojo/nginx
+    init: true
+    container_name: cyber-dojo-nginx
+    cpu_shares: 1024
+    mem_limit: 50M
+    memswap_limit: 50M
+    restart: on-failure
+    depends_on:
+      - web
+    env_file:
+      - ${CYBER_DOJO_ENV_ROOT}/nginx.env
+    ports:
+      - ${CYBER_DOJO_NGINX_PORT}:80
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # main server (rails)
+
+  web:
+    user: nobody
+    image: cyberdojo/web
+    init: true
+    container_name: cyber-dojo-web
+    cpu_shares: 1024
+    environment:
+      - CYBER_DOJO_HOME
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    depends_on:
+      - differ
+      - runner_stateless
+      - runner_stateful
+      - runner_processful
+      - starter
+      - storer
+      - zipper
+    env_file:
+      - ${CYBER_DOJO_ENV_ROOT}/web.env
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # provides setup start-points
+
+  starter:
+    user: nobody
+    image: cyberdojo/starter
+    init: true
+    container_name: cyber-dojo-starter
+    cpu_shares: 1024
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 50M
+    memswap_limit: 50M
+    environment:
+      - CYBER_DOJO_START_POINTS_ROOT=${CYBER_DOJO_START_POINTS_ROOT}
+    volumes:
+      - languages:${CYBER_DOJO_START_POINTS_ROOT}/languages:ro
+      - exercises:${CYBER_DOJO_START_POINTS_ROOT}/exercises:ro
+      - custom:${CYBER_DOJO_START_POINTS_ROOT}/custom:ro
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # runners
+
+  runner_stateless:
+    user: root
+    image: cyberdojo/runner_stateless
+    init: true
+    container_name: cyber-dojo-runner-stateless
+    cpu_shares:  1024
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+
+  runner_stateful:
+    user: root
+    image: cyberdojo/runner_stateful
+    init: true
+    container_name: cyber-dojo-runner-stateful
+    cpu_shares: 1024
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+
+  runner_processful:
+    user: root
+    image: cyberdojo/runner_processful
+    init: true
+    container_name: cyber-dojo-runner-processful
+    cpu_shares: 1024
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # stores code+tests for every test event
+
+  storer:
+    user: storer
+    image: cyberdojo/storer
+    init: true
+    container_name: cyber-dojo-storer
+    cpu_shares: 1024
+    read_only: true
+    tmpfs: /tmp
+    environment:
+      - CYBER_DOJO_KATAS_ROOT
+    volumes_from:
+      - container:${CYBER_DOJO_KATAS_DATA_CONTAINER}:rw
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    depends_on:
+      - starter
+      - prometheus
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # diffs all the files in two test events
+
+  differ:
+    user: nobody
+    image: cyberdojo/differ
+    init: true
+    container_name: cyber-dojo-differ
+    cpu_shares: 512
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 1G
+    memswap_limit: 1G
+    restart: on-failure
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # garbage collects old volumes used by runner_stateful
+
+  collector:
+    user: root
+    image: cyberdojo/collector
+    init: true
+    container_name: cyber-dojo-collector
+    cpu_shares: 256
+    mem_limit: 1G
+    memswap_limit: 1G
+    restart: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # provides tgz files of kata sessions
+
+  zipper:
+    user: nobody
+    image: cyberdojo/zipper
+    init: true
+    container_name: cyber-dojo-zipper
+    cpu_shares: 256
+    read_only: true
+    tmpfs: /tmp
+    mem_limit: 50M
+    memswap_limit: 50M
+    restart: on-failure
+    depends_on:
+      - storer
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # monitoring
+
+  prometheus:
+    image: cyberdojo/prometheus
+    init: true
+    container_name: cyber-dojo-prometheus
+    cpu_shares: 128
+
+  grafana:
+    image: cyberdojo/grafana
+    init: true
+    container_name: cyber-dojo-grafana
+    cpu_shares: 128
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    env_file:
+      - ${CYBER_DOJO_ENV_ROOT}/grafana.env
+    ports:
+      - '3000:3000'
+
+  # - - - - - - - - - - - - - - - - - - - - - - -
+  # EXPERIMENTING WITH REPLS
+
+  runner_repl:
+    user: root
+    image: cyberdojo/runner_repl
+    init: true
+    container_name: cyber-dojo-runner-repl
+    read_only: false
+    tmpfs: /tmp
+    mem_limit: 2G
+    memswap_limit: 2G
+    restart: on-failure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
