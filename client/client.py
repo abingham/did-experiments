@@ -6,15 +6,6 @@ import docker
 
 
 @contextmanager
-def using_network(docker_client, *args, **kwargs):
-    network = docker_client.networks.create(*args, **kwargs)
-    try:
-        yield network
-    finally:
-        network.remove()
-
-
-@contextmanager
 def using_container(docker_client, *args, **kwargs):
     container = docker_client.containers.run(*args, **kwargs, detach=True)
 
@@ -32,20 +23,17 @@ def using_container(docker_client, *args, **kwargs):
 async def main():
     dclient = docker.from_env()
 
-    network_name = 'aio'
-    # with using_network(dclient, name=network_name) as network:
     with using_container(
             dclient,
-            "abingham/aio-server",
+            image="abingham/aio-server",
             name="aio-server",
-            network_mode='bridge',
-            # network=network_name,
-            network_disabled=False,
-            hostname='aio-server',
-            ports={'4647/tcp': 4647}) as container:
+            ports={
+                '4647/tcp': 4647,
+            },
+    ) as container:
 
         async with aiohttp.ClientSession() as session:
-            async with session.get('http://aio-server:4647/foo') as resp:
+            async with session.get('http://0.0.0.0:4647/foo') as resp:
                 print(resp.status)
                 print(await resp.text())
 
