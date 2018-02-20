@@ -33,7 +33,7 @@ async def main():
     ) as container:
 
         async with aiohttp.ClientSession() as session:
-            async with session.get('http://0.0.0.0:4647/foo') as resp:
+            async with session.get('http://docker.for.mac.host.internal:4647/foo') as resp:
                 print(resp.status)
                 print(await resp.text())
 
