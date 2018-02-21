@@ -1,23 +1,28 @@
-# It seems that docker-compose won't really help us since we need to launch
-# containers from within containers. Unless DC gives us some method to
-# dynamically launch containers...but that seems unlikely.
-
 version: '2.2'
+networks:
+  default:
+    external:
+      name: aio
 
 services:
-
   client:
+    build:
+      context: client
     user: root
-    build: client
     init: true
+    image: abingham/aio-client
     container_name: aio-client
-    restart: on-failure
-    deends_on:
-      - server
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   server:
-    user: nobody
-    build: server
+    build:
+      context: server
+    user: root
     init: true
-    container_name: abingham/aio-server
-    restart: on-failure
+    image: abingham/aio-server
+    container_name: aio-server
+    restart: "no"
+    ports:
+      - 4647:4647
