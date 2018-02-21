@@ -308,3 +308,20 @@ At this point I'm pretty sure that my problems stem from Docker on Mac, so I
 think the smart thing to do is try this in the Docker motherland, Linux. I'm
 going to create a linux VM and see what happens there. It's turtles all the way
 down...
+
+This didn't bear any fruit immediately, and I changed tack mid-experiment based
+on some advice from Jon.
+
+# Experiment 4: Using docker-compose
+
+Based on Jon's suggestion and implementation, it appears that docker-compose in
+fact makes this all work. My understanding was that DC would start all of the
+containers for us, missing the goal of letting us start our containers, but
+that's not entirely the case. While I'm sure that I attemped to replicate what
+DC is doing --- creating a private network and using it for inter-container
+communication --- I must have done something wrong because evidently that
+approach does work.
+
+The results of this work can be found in the tag `experiment-4`. Thanks, Jon!
+
+Based on this work, I think we're ready to try adding this to CD itself!
